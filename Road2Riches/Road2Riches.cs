@@ -141,7 +141,7 @@ namespace Road2Riches
 					{
 						var body = csv.GetRecord<ScanEntry>();
 						body.Body = NATO.Aggregate(body.Body.Replace(body.System, ""), (current, value) => current.Replace(value.Key, value.Value));
-
+						vaProxy.WriteToLog(body.ToString());
 						//first system?
 						if (CurrSystem == "")
 						{
@@ -162,6 +162,15 @@ namespace Road2Riches
 							tempList = new List<ScanEntry>();
 							tempList.Add(body);
 						}
+					}
+					//add last record
+					if (tempList[0].System == Scans[Scans.Count - 1][0].System)
+					{
+						Scans[Scans.Count - 1].Add(tempList[0]);
+					}
+					else
+					{
+						Scans.Add(tempList);
 					}
 					CurrIndex = 0;
 				}
@@ -193,7 +202,7 @@ namespace Road2Riches
 		public static void HandleSystem(dynamic vaProxy, int index)
 		{
 			//we will always have a body, index 0
-			if(index > Scans.Count)
+			if(index >= Scans.Count)
 			{
 				vaProxy.SetText("r2r_sayData", "Expedition complete! Well done commander");
 				Scans = new List<List<ScanEntry>>();
@@ -206,6 +215,10 @@ namespace Road2Riches
 			foreach (var scan in Scans[CurrIndex])
 			{
 				temp += scan.Body;
+			}
+			if(index == (Scans.Count - 1))
+			{
+				temp += ". This is the last system we scan.";
 			}
 			vaProxy.SetText("r2r_sayData", "We are going to " + CurrSystem + ", and to visit planets " + temp);
 			CopyToClipboard(CurrSystem);
