@@ -19,7 +19,7 @@ namespace Road2Riches
 		}
 		public static string VA_DisplayName()
 		{
-			return "Road 2 riches V0.1.0 - Made by HammerPiano";
+			return "Road 2 riches V1.0.0 - Made by HammerPiano";
 		}
 		static List<List<ScanEntry>> Scans = new List<List<ScanEntry>>();
 
@@ -83,117 +83,34 @@ namespace Road2Riches
 			}
 
 		}
-		
-		[STAThread]
+
 		public static void VA_Invoke1(dynamic vaProxy)
 		{
 			switch (vaProxy.Context)
 			{
 				//init
 				case "r2r_init":
-					try
-					{
-						var path = vaProxy.GetText("path");
-						vaProxy.WriteToLog(path, "green");
-						var tempList = new List<ScanEntry>();
-						using (var reader = new StreamReader(path))
-						using (var csv = new CsvHelper.CsvReader(reader))
-						{
-							while (csv.Read())
-							{
-								var body = csv.GetRecord<ScanEntry>();
-								body.Body = NATO.Aggregate(body.Body.Replace(body.System, ""), (current, value) => current.Replace(value.Key, value.Value));
-
-								//first system?
-								if (CurrSystem == "")
-								{
-									CurrSystem = body.System;
-									tempList.Add(body);
-								}
-								//multiple planets
-								else if (CurrSystem == body.System)
-								{
-									tempList.Add(body);
-								}
-								//next system
-								else
-								{
-									//update system
-									CurrSystem = body.System;
-									Scans.Add(tempList);
-									tempList = new List<ScanEntry>();
-									tempList.Add(body);
-								}
-							}
-							CurrIndex = 0;
-						}
-						vaProxy.SetText("r2r_sayData", "Initialization complete");
-						vaProxy.WriteToLog(String.Format("{0} systems to scan", Scans.Count), "blue");
-					}
-					catch (Exception e)
-					{
-						vaProxy.WriteToLog("Error - init" + e.ToString(), "red");
-						return;
-					}
+					InitData(vaProxy);
 					break;
 
 				//start the expedition
 				case "r2r_start":
-					//first system
-					vaProxy.WriteToLog(Scans[0].Count.ToString(), "yellow");
-					CurrSystem = Scans[0][0].System;
 					CurrIndex = 0;
-					var t = new Thread((ThreadStart)(() => { Clipboard.SetText(CurrSystem); }));
-					t.SetApartmentState(ApartmentState.STA);
-					t.Start();
-					t.Join();
-					String temp = "";
-					//listing planets
-					foreach (var scan in Scans[0])
-					{
-						temp += scan.Body;
-					}
-					vaProxy.SetText("r2r_sayData", "We are going to " + CurrSystem + ", and to visit planets " + temp);
+					HandleSystem(vaProxy,0);
 					break;
 
 				//next system
 				case "r2r_next_system":
 					CurrIndex++;
-					if(CurrIndex >= Scans.Count)
-					{
-						vaProxy.SetText("r2r_sayData", "Expedition complete! Well done commander");
-						Scans = new List<List<ScanEntry>>();
-						CurrIndex = 0;
-						CurrSystem = "";
-						break;
-					}
-					CurrSystem = Scans[CurrIndex][0].System;
-					temp = "";
-					foreach (var scan in Scans[CurrIndex])
-					{
-						temp += scan.Body;
-					}
-					vaProxy.SetText("r2r_sayData", "We are going to " + CurrSystem + ", and to visit planets " + temp);
-					t = new Thread((ThreadStart)(() => { Clipboard.SetText(CurrSystem); }));
-					t.SetApartmentState(ApartmentState.STA);
-					t.Start();
-					t.Join();
+					HandleSystem(vaProxy, CurrIndex);
 					break;
 
 				case "r2r_stop":
-					CurrSystem = "";
-					CurrIndex = 0;
-					Scans = new List<List<ScanEntry>>();
-					vaProxy.SetText("r2r_sayData", "Expedition aborted");
+					Stop(vaProxy);
 					break;
 
 				case "r2r_repeat_planets":
-					temp = "";
-					foreach (var scan in Scans[CurrIndex])
-					{
-						temp += scan.Body;
-					}
-					vaProxy.SetText("r2r_sayData", "We need to scan planets " + temp);
+					ListPlanets(vaProxy);
 					break;
 
 				default:
@@ -206,6 +123,116 @@ namespace Road2Riches
 				vaProxy.ExecuteCommand("r2r_say");
 			}
 
+		}
+		/* 
+		 * function will init Scans data from the CSV filepath saved in the variable path
+		 */
+		public static void InitData(dynamic vaProxy)
+		{
+			try
+			{
+				var path = vaProxy.GetText("path");
+				vaProxy.WriteToLog(path, "green");
+				var tempList = new List<ScanEntry>();
+				using (var reader = new StreamReader(path))
+				using (var csv = new CsvHelper.CsvReader(reader))
+				{
+					while (csv.Read())
+					{
+						var body = csv.GetRecord<ScanEntry>();
+						body.Body = NATO.Aggregate(body.Body.Replace(body.System, ""), (current, value) => current.Replace(value.Key, value.Value));
+
+						//first system?
+						if (CurrSystem == "")
+						{
+							CurrSystem = body.System;
+							tempList.Add(body);
+						}
+						//multiple planets
+						else if (CurrSystem == body.System)
+						{
+							tempList.Add(body);
+						}
+						//next system
+						else
+						{
+							//update system
+							CurrSystem = body.System;
+							Scans.Add(tempList);
+							tempList = new List<ScanEntry>();
+							tempList.Add(body);
+						}
+					}
+					CurrIndex = 0;
+				}
+				vaProxy.SetText("r2r_sayData", "Initialization complete");
+				vaProxy.WriteToLog(String.Format("{0} systems to scan", Scans.Count), "blue");
+			}
+			catch (Exception e)
+			{
+				vaProxy.WriteToLog("Error - init" + e.ToString(), "red");
+				return;
+			}
+		}
+
+		/*
+		 * function will copy string to clipboard
+		 */
+		public static void CopyToClipboard(string str)
+		{
+			var t = new Thread((ThreadStart)(() => { Clipboard.SetText(str); }));
+			t.SetApartmentState(ApartmentState.STA);
+			t.Start();
+			t.Join();
+		}
+
+		/*
+		 * function will handle return data about scans of a system
+		 * gets a system index
+		 */
+		public static void HandleSystem(dynamic vaProxy, int index)
+		{
+			//we will always have a body, index 0
+			if(index > Scans.Count)
+			{
+				vaProxy.SetText("r2r_sayData", "Expedition complete! Well done commander");
+				Scans = new List<List<ScanEntry>>();
+				CurrIndex = 0;
+				CurrSystem = "";
+				return;
+			}
+			CurrSystem = Scans[index][0].System;
+			string temp = "";
+			foreach (var scan in Scans[CurrIndex])
+			{
+				temp += scan.Body;
+			}
+			vaProxy.SetText("r2r_sayData", "We are going to " + CurrSystem + ", and to visit planets " + temp);
+			CopyToClipboard(CurrSystem);
+		}
+
+		/*
+		 * function will abort the expedition
+		 */
+		public static void Stop(dynamic vaProxy)
+		{
+			CurrSystem = "";
+			CurrIndex = 0;
+			Scans = new List<List<ScanEntry>>();
+			vaProxy.SetText("r2r_sayData", "Expedition aborted");
+		}
+
+		/*
+		 * function will list the planets to scan in a system
+		 */
+		public static void ListPlanets(dynamic vaProxy)
+		{
+			string temp = "";
+			foreach (var scan in Scans[CurrIndex])
+			{
+				temp += scan.Body;
+			}
+			vaProxy.SetText("r2r_sayData", "We need to scan planets " + temp);
 		}
 	}
 
