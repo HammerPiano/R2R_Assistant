@@ -144,6 +144,7 @@ namespace Road2Riches
 					CurrSystem = Scans[0][0].System;
 					CurrIndex = 0;
 					var t = new Thread((ThreadStart)(() => { Clipboard.SetText(CurrSystem); }));
+					t.SetApartmentState(ApartmentState.STA);
 					t.Start();
 					t.Join();
 					String temp = "";
@@ -174,6 +175,7 @@ namespace Road2Riches
 					}
 					vaProxy.SetText("r2r_sayData", "We are going to " + CurrSystem + ", and to visit planets " + temp);
 					t = new Thread((ThreadStart)(() => { Clipboard.SetText(CurrSystem); }));
+					t.SetApartmentState(ApartmentState.STA);
 					t.Start();
 					t.Join();
 					break;
